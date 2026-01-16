@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
 
-    // Dynamically import VerificationManager to avoid build-time issues
-    const { VerificationManager } = await import('@/lib/verification');
+    // Dynamically load the real verification manager
+    const { createRealVerificationManager } = await import('@/lib/verification');
+    const VerificationManager = await createRealVerificationManager();
 
     // Verify the code
     const verification = VerificationManager.verifyCode(email, code);

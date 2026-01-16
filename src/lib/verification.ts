@@ -177,3 +177,6 @@ interface VerificationManagerType {
 
 // Export mock manager - API routes handle dynamic loading
 export const VerificationManager = mockVerificationManager;
+
+// Export function to create real manager dynamically
+export { createRealVerificationManager };
