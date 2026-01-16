@@ -34,6 +34,7 @@ let realVerificationManager: typeof VerificationManager | null = null;
 
 async function getRealVerificationManager(): Promise<typeof mockVerificationManager> {
   if (!realVerificationManager) {
+    // Always try to create the real manager, fallback to mock on error
     try {
       // Dynamic imports to avoid build-time issues
       const [{ Resend }] = await Promise.all([
@@ -151,8 +152,8 @@ async function getRealVerificationManager(): Promise<typeof mockVerificationMana
         }
       };
     } catch (error) {
-      console.warn('Failed to create real verification manager, using mock');
-      return mockVerificationManager;
+      console.warn('Failed to create real verification manager, falling back to mock');
+      realVerificationManager = mockVerificationManager;
     }
   }
   return realVerificationManager;
