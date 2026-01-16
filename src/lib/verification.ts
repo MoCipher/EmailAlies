@@ -158,15 +158,6 @@ async function createRealVerificationManager() {
   }
 }
 
-// Replace with real implementation at runtime
-if (!isBuildTime) {
-  createRealVerificationManager().then((realManager) => {
-    VerificationManager = realManager;
-  }).catch((error) => {
-    console.warn('Failed to load real VerificationManager, using mock');
-  });
-}
-
 // Define the VerificationManager interface
 interface VerificationManagerType {
   createCode(email: string, purpose: 'register' | 'login'): string;
