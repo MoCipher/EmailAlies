@@ -1,16 +1,8 @@
 # Cloudflare Pages Configuration
-# Used for both local development and production deployment
+# Minimal config for Pages projects
 
 name = "emailalies"
-compatibility_date = "2024-01-01"
 
-# Pages build configuration
-pages_build_output_dir = ".next"
-
-# Build command
-[build]
-command = "npm run build"
-
-# Environment variables
+# Environment variables for production
 [vars]
 NODE_ENV = "production"
