@@ -14,7 +14,7 @@ const mockVerificationManager = {
     return '123456'; // Mock code
   },
 
-  verifyCode: (email: string, code: string) => {
+  verifyCode: (email: string, code: string): VerificationCode | null => {
     console.log(`[BUILD TIME] Mock verifyCode: ${email} with ${code}`);
     return { email, code, expiresAt: new Date(), purpose: 'register' as const };
   },
