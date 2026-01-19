@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimiter, handleCorsPreflight, logToCloudflare, isCloudflareEnvironment } from '@/lib/cloudflare';
 
-// Middleware for Cloudflare Pages optimization
-export function middleware(request: NextRequest) {
+// Edge runtime middleware for Cloudflare Pages optimization
+export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Log requests in Cloudflare environment
