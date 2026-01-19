@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimiter, handleCorsPreflight, logToCloudflare, isCloudflareEnvironment } from '@/lib/cloudflare';
+
+// Middleware for Cloudflare Pages optimization
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Log requests in Cloudflare environment
+  if (isCloudflareEnvironment()) {
+    logToCloudflare('info', `Request: ${request.method} ${pathname}`, {
+      userAgent: request.headers.get('user-agent'),
+      ip: request.ip || request.headers.get('cf-connecting-ip'),
+    });
+  }
+
+  // Handle CORS preflight requests
+  if (request.method === 'OPTIONS') {
+    return handleCorsPreflight();
+  }
+
+  // Rate limiting for API routes
+  if (pathname.startsWith('/api/')) {
+    const clientIP = request.ip || request.headers.get('cf-connecting-ip') || 'unknown';
+    const identifier = `${clientIP}:${pathname}`;
+
+    if (rateLimiter.isRateLimited(identifier)) {
+      logToCloudflare('warn', `Rate limited: ${identifier}`);
+
+      return NextResponse.json(
+        {
+          error: 'Too many requests',
+          retryAfter: '60', // seconds
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': '60',
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+
+    // Add rate limit headers
+    const remaining = rateLimiter.getRemainingRequests(identifier);
+    const response = NextResponse.next();
+    response.headers.set('X-RateLimit-Remaining', remaining.toString());
+    response.headers.set('X-RateLimit-Limit', '100');
+    return response;
+  }
+
+  // Security headers for all routes
+  const response = NextResponse.next();
+
+  // Add security headers
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Cloudflare-specific optimizations
+  if (isCloudflareEnvironment()) {
+    // Add Cloudflare-specific headers
+    response.headers.set('CF-Cache-Status', 'DYNAMIC');
+    response.headers.set('CF-RAY', request.headers.get('cf-ray') || 'unknown');
+
+    // Optimize caching for static assets
+    if (pathname.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2)$/)) {
+      response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      response.headers.set('CDN-Cache-Control', 'max-age=31536000');
+      response.headers.set('Cloudflare-CDN-Cache-Control', 'max-age=31536000');
+    }
+  }
+
+  return response;
+}
+
+// Configure which paths the middleware runs on
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
+};

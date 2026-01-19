@@ -8,9 +8,13 @@
     "start": "next start",
     "lint": "eslint",
     "cf:deploy": "wrangler pages deploy .",
-    "cf:dev": "wrangler pages dev",
+    "cf:dev": "wrangler pages dev --compatibility-date=2024-01-01",
+    "cf:preview": "wrangler pages dev --port 3001",
     "db:init": "node scripts/init-db.js",
-    "db:migrate": "node scripts/migrate-db.js"
+    "db:migrate": "node scripts/migrate-db.js",
+    "db:seed": "node scripts/seed-db.js",
+    "d1:init": "wrangler d1 execute myemailalies --file=scripts/init-d1.js",
+    "d1:migrate": "wrangler d1 execute myemailalies --file=scripts/migrate-d1.js"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.18",
