@@ -83,7 +83,7 @@ export default function Home() {
           Secure Email Aliases
           <br />
           <span className="text-primary">Encrypted & Private</span>
-        </h1>
+          </h1>
         <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
           Create disposable email aliases that forward to your real inbox.
           End-to-end encrypted, privacy-focused, and works across all your devices.

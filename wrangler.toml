@@ -9,3 +9,8 @@ pages_build_output_dir = ".next"
 # Environment variables for production
 [vars]
 NODE_ENV = "production"
+
+[[d1_databases]]
+binding = "EmailAlies" # This is the binding name that will be available in your application (e.g., env.DB)
+database_name = "myemailalies"
+database_id = "e8b257e5-a1e0-4409-93df-5a9435c8f05c"
