@@ -1,17 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/database/db';
+import { getDatabase, DatabaseManager } from '@/database/db';
 import { z } from 'zod';
 
+// Define a minimal interface for D1Database for local development and type checking
+interface D1Database {
+  prepare(query: string): {
+    bind(...args: any[]): D1PreparedStatement;
+    all(): Promise<{ results: any[] }>;
+    first<T>(col?: string): Promise<T | null>;
+    run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+  };
+  exec(query: string): Promise<any>;
+}
+
+interface D1PreparedStatement {
+  bind(...args: any[]): D1PreparedStatement;
+  all(): Promise<{ results: any[] }>;
+  first<T>(col?: string): Promise<T | null>;
+  run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+}
+
 // Middleware to check authentication (simplified)
-async function getAuthenticatedUser(request: NextRequest) {
+async function getAuthenticatedUser(request: NextRequest, db: DatabaseManager) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return null;
   }
 
   const userId = authHeader.replace('Bearer ', '');
-  const db = getDatabase();
-  return db.getUserById(userId);
+  return await db.getUserById(userId);
 }
 
 const updateAliasSchema = z.object({
@@ -21,27 +38,28 @@ const updateAliasSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } },
+  context: { env: { DB: D1Database } }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const db = await getDatabase(context.env.DB);
+    const user = await getAuthenticatedUser(request, db);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
+    const resolvedParams = params;
     const body = await request.json();
     const updates = updateAliasSchema.parse(body);
 
-    const db = getDatabase();
-    const aliases = db.getAliasesByUserId(user.id);
+    const aliases = await db.getAliasesByUserId(user.id);
     const alias = aliases.find(a => a.id === resolvedParams.id);
 
     if (!alias) {
       return NextResponse.json({ error: 'Alias not found' }, { status: 404 });
     }
 
-    db.updateAlias(resolvedParams.id, updates);
+    await db.updateAlias(resolvedParams.id, updates);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -62,24 +80,25 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } },
+  context: { env: { DB: D1Database } }
 ) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const db = await getDatabase(context.env.DB);
+    const user = await getAuthenticatedUser(request, db);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const db = getDatabase();
-    const aliases = db.getAliasesByUserId(user.id);
+    const resolvedParams = params;
+    const aliases = await db.getAliasesByUserId(user.id);
     const alias = aliases.find(a => a.id === resolvedParams.id);
 
     if (!alias) {
       return NextResponse.json({ error: 'Alias not found' }, { status: 404 });
     }
 
-    db.deleteAlias(resolvedParams.id);
+    await db.deleteAlias(resolvedParams.id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

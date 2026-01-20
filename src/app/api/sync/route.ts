@@ -1,19 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSyncService } from '@/lib/sync';
 import { MasterKeyManager } from '@/lib/encryption';
-import { getDatabase } from '@/database/db';
+import { getDatabase, DatabaseManager } from '@/database/db';
 import { z } from 'zod';
 
+// Define a minimal interface for D1Database for local development and type checking
+interface D1Database {
+  prepare(query: string): {
+    bind(...args: any[]): D1PreparedStatement;
+    all(): Promise<{ results: any[] }>;
+    first<T>(col?: string): Promise<T | null>;
+    run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+  };
+  exec(query: string): Promise<any>;
+}
+
+interface D1PreparedStatement {
+  bind(...args: any[]): D1PreparedStatement;
+  all(): Promise<{ results: any[] }>;
+  first<T>(col?: string): Promise<T | null>;
+  run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+}
+
 // Middleware to check authentication (simplified)
-async function getAuthenticatedUser(request: NextRequest) {
+async function getAuthenticatedUser(request: NextRequest, db: DatabaseManager) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return null;
   }
 
   const userId = authHeader.replace('Bearer ', '');
-  const db = getDatabase();
-  return db.getUserById(userId);
+  return await db.getUserById(userId);
 }
 
 const syncSchema = z.object({
@@ -21,9 +38,10 @@ const syncSchema = z.object({
   lastSyncTimestamp: z.string().optional(),
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context: { env: { DB: D1Database } }) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const db = await getDatabase(context.env.DB);
+    const user = await getAuthenticatedUser(request, db);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -32,10 +50,9 @@ export async function POST(request: NextRequest) {
     const { deviceId, lastSyncTimestamp } = syncSchema.parse(body);
 
     const syncService = getSyncService();
-    const db = getDatabase();
 
     // Verify device belongs to user
-    const devices = db.getDevicesByUserId(user.id);
+    const devices = await db.getDevicesByUserId(user.id);
     const device = devices.find(d => d.id === deviceId);
 
     if (!device) {
@@ -54,7 +71,8 @@ export async function POST(request: NextRequest) {
       user.id,
       deviceId,
       masterKey,
-      lastSync
+      lastSync,
+      db // Pass the database instance to the sync service
     );
 
     return NextResponse.json({
@@ -78,17 +96,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest, context: { env: { DB: D1Database } }) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const db = await getDatabase(context.env.DB);
+    const user = await getAuthenticatedUser(request, db);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const syncService = getSyncService();
-    const db = getDatabase();
 
-    const devices = db.getDevicesByUserId(user.id);
+    const devices = await db.getDevicesByUserId(user.id);
 
     return NextResponse.json({ devices });
   } catch (error) {

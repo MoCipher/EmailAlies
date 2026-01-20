@@ -1,7 +1,8 @@
 # Cloudflare Pages Configuration
-# Configuration for Pages deployment
+# Optimized for EmailAlies application with D1 database and Pages Functions
 
 name = "emailalies"
+compatibility_date = "2024-01-01"
 
 # Build output directory for Next.js
 pages_build_output_dir = ".next"
@@ -9,8 +10,30 @@ pages_build_output_dir = ".next"
 # Environment variables for production
 [vars]
 NODE_ENV = "production"
+CF_PAGES = "1"
 
+# D1 Database binding for persistent storage
 [[d1_databases]]
-binding = "EmailAlies" # This is the binding name that will be available in your application (e.g., env.DB)
+binding = "DB"
 database_name = "myemailalies"
 database_id = "e8b257e5-a1e0-4409-93df-5a9435c8f05c"
+
+# Pages Functions configuration
+[pages_build_config]
+# Build command (handled by GitHub Actions)
+build_command = "npm run build"
+# Destination directory (handled by Next.js)
+destination_dir = ".next"
+
+# Rate limiting (if needed for production)
+# [rate_limits]
+# [rate_limits.api]
+# requests_per_hour = 1000
+
+# Custom domains (uncomment if you have custom domains)
+# [[pages_build_config.custom_domains]]
+# domain = "your-custom-domain.com"
+
+# Analytics and monitoring
+# [analytics]
+# token = "your-analytics-token"

@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/database/db';
-import { MasterKeyManager } from '@/lib/encryption';
 import { z } from 'zod';
+
+// Define a minimal interface for D1Database for local development and type checking
+interface D1Database {
+  prepare(query: string): {
+    bind(...args: any[]): D1PreparedStatement;
+    all(): Promise<{ results: any[] }>;
+    first<T>(col?: string): Promise<T | null>;
+    run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+  };
+  exec(query: string): Promise<any>;
+}
+
+interface D1PreparedStatement {
+  bind(...args: any[]): D1PreparedStatement;
+  all(): Promise<{ results: any[] }>;
+  first<T>(col?: string): Promise<T | null>;
+  run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+}
 
 // Force dynamic rendering to prevent static analysis during build
 export const dynamic = 'force-dynamic';
@@ -11,12 +28,12 @@ const verifyCodeSchema = z.object({
   code: z.string().length(6),
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context: { env: { DB: D1Database } }) {
   try {
     const body = await request.json();
     const { email, code } = verifyCodeSchema.parse(body);
 
-    const db = getDatabase();
+    const db = await getDatabase(context.env.DB);
 
     // Dynamically load the real verification manager
     const { createRealVerificationManager } = await import('@/lib/verification');
@@ -32,40 +49,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let user;
+    // Only handle login for existing admin users
+    if (verification.purpose !== 'login') {
+      return NextResponse.json(
+        { error: 'Invalid verification purpose' },
+        { status: 400 }
+      );
+    }
 
-    if (verification.purpose === 'register') {
-      // Check if user already exists (shouldn't happen but safety check)
-      const existingUser = db.getUserByEmail(email);
-      if (existingUser) {
-        return NextResponse.json(
-          { error: 'User already exists' },
-          { status: 409 }
-        );
-      }
+    // Get existing admin user
+    const user = await db.getUserByEmail(email);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
 
-      // Create new user with generated master key
-      const { masterKey, salt } = await MasterKeyManager.generateMasterKey();
-      const encryptedMasterKey = await MasterKeyManager.encryptMasterKey(masterKey, salt);
-
-      const userId = crypto.randomUUID();
-      db.createUser({
-        id: userId,
-        email,
-        encryptionKey: encryptedMasterKey,
-        masterKeySalt: salt,
-      });
-
-      user = db.getUserById(userId);
-    } else if (verification.purpose === 'login') {
-      // Get existing user
-      user = db.getUserByEmail(email);
-      if (!user) {
-        return NextResponse.json(
-          { error: 'User not found' },
-          { status: 404 }
-        );
-      }
+    // Ensure user is an admin
+    if (!user.isAdmin) {
+      return NextResponse.json(
+        { error: 'Access denied. Admin privileges required.' },
+        { status: 403 }
+      );
     }
 
     if (!user) {
@@ -83,9 +89,9 @@ export async function POST(request: NextRequest) {
       user: {
         id: user.id,
         email: user.email,
+        isAdmin: user.isAdmin,
       },
       sessionToken,
-      isNewUser: verification.purpose === 'register',
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

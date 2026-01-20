@@ -2,6 +2,8 @@
 
 A modern, encrypted email aliasing service that protects your privacy by creating disposable email addresses that forward to your real inbox. Built with end-to-end encryption, cross-device synchronization, and a beautiful modern UI.
 
+<!-- Cloudflare Pages + D1 optimized -->
+
 ## 🚀 Features
 
 - **🔐 End-to-End Encryption**: All emails and user data are encrypted before leaving your device
@@ -13,11 +15,24 @@ A modern, encrypted email aliasing service that protects your privacy by creatin
 
 ## 🏗️ Architecture
 
+### Core Technologies
 - **Frontend**: Next.js 16 with TypeScript, Tailwind CSS, and modern React
-- **Backend**: Next.js API routes with SQLite database
+- **Backend**: Next.js API routes with Cloudflare Pages Functions
+- **Database**: Cloudflare D1 (SQLite-compatible) for persistent storage
 - **Encryption**: AES-GCM encryption using Web Crypto API
-- **Database**: SQLite with better-sqlite3 for local storage
-- **Styling**: Tailwind CSS with custom design system
+- **Deployment**: Cloudflare Pages with automatic scaling
+
+### Cloudflare Optimizations
+- **D1 Database**: Serverless SQLite with automatic scaling
+- **Pages Functions**: Serverless API routes with global distribution
+- **Rate Limiting**: Built-in protection against abuse
+- **Edge Caching**: Optimized content delivery worldwide
+- **Security Headers**: Automatic security headers and CORS handling
+
+### Environment Support
+- **Local Development**: SQLite with better-sqlite3
+- **Cloudflare Pages**: D1 database with Pages Functions
+- **Automatic Detection**: Seamless switching between environments
 
 ## 🚀 Quick Start
 
@@ -25,6 +40,7 @@ A modern, encrypted email aliasing service that protects your privacy by creatin
 
 - Node.js 18+
 - npm or yarn
+- Cloudflare account (for deployment)
 
 ### Local Development
 
@@ -47,7 +63,42 @@ A modern, encrypted email aliasing service that protects your privacy by creatin
 
 4. **Open [http://localhost:3000](http://localhost:3000)**
 
-### Cloudflare Deployment
+### Cloudflare Pages + D1 Deployment
+
+EmailAlies is optimized for Cloudflare Pages with D1 database for persistent storage.
+
+#### 1. Set up Cloudflare D1 Database
+
+```bash
+# Install Wrangler CLI
+npm install -g wrangler
+
+# Login to Cloudflare
+wrangler auth login
+
+# Create D1 database
+wrangler d1 create myemailalies
+```
+
+#### 2. Configure Environment Variables
+
+In your Cloudflare Pages project settings:
+
+- **RESEND_API_KEY**: Your Resend API key for email verification
+
+#### 3. Deploy to Cloudflare Pages
+
+```bash
+# Build and deploy
+npm run build
+npm run cf:deploy
+```
+
+#### 4. Access Your App
+
+Your app will be available at: `https://emailalies.pages.dev`
+
+### Cloudflare Development
 
 1. **Install Wrangler CLI:**
    ```bash

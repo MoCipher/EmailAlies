@@ -1,27 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSyncService } from '@/lib/sync';
-import { getDatabase } from '@/database/db';
+import { getDatabase, DatabaseManager } from '@/database/db';
 import { z } from 'zod';
 
+// Define a minimal interface for D1Database for local development and type checking
+interface D1Database {
+  prepare(query: string): {
+    bind(...args: any[]): D1PreparedStatement;
+    all(): Promise<{ results: any[] }>;
+    first<T>(col?: string): Promise<T | null>;
+    run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+  };
+  exec(query: string): Promise<any>;
+}
+
+interface D1PreparedStatement {
+  bind(...args: any[]): D1PreparedStatement;
+  all(): Promise<{ results: any[] }>;
+  first<T>(col?: string): Promise<T | null>;
+  run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+}
+
 // Middleware to check authentication (simplified)
-async function getAuthenticatedUser(request: NextRequest) {
+async function getAuthenticatedUser(request: NextRequest, db: DatabaseManager) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader) {
     return null;
   }
 
   const userId = authHeader.replace('Bearer ', '');
-  const db = getDatabase();
-  return db.getUserById(userId);
+  return await db.getUserById(userId);
 }
 
 const registerDeviceSchema = z.object({
   deviceName: z.string().min(1),
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context: { env: { DB: D1Database } }) {
   try {
-    const user = await getAuthenticatedUser(request);
+    const db = await getDatabase(context.env.DB);
+    const user = await getAuthenticatedUser(request, db);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -30,7 +48,7 @@ export async function POST(request: NextRequest) {
     const { deviceName } = registerDeviceSchema.parse(body);
 
     const syncService = getSyncService();
-    const deviceId = await syncService.registerDevice(user.id, deviceName);
+    const deviceId = await syncService.registerDevice(user.id, deviceName, db);
 
     return NextResponse.json({
       success: true,

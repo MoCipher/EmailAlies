@@ -1,19 +1,23 @@
-import { getDatabase } from '@/database/db';
+import { getDatabase, DatabaseManager } from '@/database/db';
 import { ClientEncryption } from './encryption';
 import { SyncData } from '@/database/schema';
 
 export class SyncService {
-  private db = getDatabase();
+  private db: DatabaseManager;
+
+  constructor(db: DatabaseManager) {
+    this.db = db;
+  }
 
   /**
    * Register a new device for the user
    */
-  async registerDevice(userId: string, deviceName: string): Promise<string> {
+  async registerDevice(userId: string, deviceName: string, db: DatabaseManager): Promise<string> {
     const deviceId = crypto.randomUUID();
     const deviceKey = await ClientEncryption.generateKey();
     const exportedDeviceKey = await ClientEncryption.exportKey(deviceKey);
 
-    this.db.createDevice({
+    await db.createDevice({
       id: deviceId,
       userId,
       deviceName,
@@ -30,24 +34,26 @@ export class SyncService {
     userId: string,
     deviceId: string,
     userMasterKey: CryptoKey,
-    lastSyncTimestamp?: Date
+    lastSyncTimestamp?: Date,
+    db?: DatabaseManager // Make db optional for local calls, required for API routes
   ): Promise<{
     aliases: any[];
     syncTimestamp: Date;
   }> {
+    const effectiveDb = db || getDatabase(); // Use provided db or get local instance
     const syncTimestamp = new Date();
 
     // Get all changes since last sync
-    const changes = this.db.getSyncDataAfterTimestamp(
+    const changes = await effectiveDb.getSyncDataAfterTimestamp(
       userId,
       lastSyncTimestamp || new Date(0)
     );
 
     // Process changes and apply to local state
-    const aliases = this.db.getAliasesByUserId(userId);
+    const aliases = await effectiveDb.getAliasesByUserId(userId);
 
     // Mark device as synced
-    this.db.updateDeviceLastSync(deviceId);
+    await effectiveDb.updateDeviceLastSync(deviceId);
 
     return {
       aliases,
@@ -65,8 +71,10 @@ export class SyncService {
     dataId: string,
     operation: 'create' | 'update' | 'delete',
     data?: any,
-    encryptionKey?: CryptoKey
+    encryptionKey?: CryptoKey,
+    db?: DatabaseManager // Add db parameter
   ): Promise<void> {
+    const effectiveDb = db || getDatabase();
     let encryptedData = '';
 
     if (data && encryptionKey) {
@@ -74,7 +82,7 @@ export class SyncService {
       encryptedData = await ClientEncryption.encrypt(dataString, encryptionKey);
     }
 
-    this.db.createSyncData({
+    await effectiveDb.createSyncData({
       id: crypto.randomUUID(),
       userId,
       deviceId,
@@ -88,8 +96,9 @@ export class SyncService {
   /**
    * Get pending sync data for a device
    */
-  getPendingSyncData(userId: string, deviceId: string, since: Date): SyncData[] {
-    return this.db.getSyncDataAfterTimestamp(userId, since);
+  async getPendingSyncData(userId: string, deviceId: string, since: Date, db?: DatabaseManager): Promise<SyncData[]> {
+    const effectiveDb = db || getDatabase();
+    return await effectiveDb.getSyncDataAfterTimestamp(userId, since);
   }
 
   /**
@@ -118,26 +127,30 @@ export class SyncService {
   /**
    * Get device info
    */
-  getDeviceInfo(deviceId: string) {
-    const devices = this.db.getDevicesByUserId(''); // This would need userId
+  async getDeviceInfo(userId: string, deviceId: string, db?: DatabaseManager) {
+    const effectiveDb = db || getDatabase();
+    const devices = await effectiveDb.getDevicesByUserId(userId); // This now correctly uses userId
     return devices.find(d => d.id === deviceId);
   }
 
   /**
    * Remove a device
    */
-  removeDevice(deviceId: string): void {
+  removeDevice(deviceId: string, db?: DatabaseManager): void {
     // In a real implementation, you'd delete the device and its sync data
     // For now, this is a placeholder
   }
 }
 
-// Singleton instance
+// Singleton instance for local development
 let syncServiceInstance: SyncService | null = null;
 
-export function getSyncService(): SyncService {
+export function getSyncService(db?: DatabaseManager): SyncService {
+  if (db) {
+    return new SyncService(db);
+  }
   if (!syncServiceInstance) {
-    syncServiceInstance = new SyncService();
+    syncServiceInstance = new SyncService(getDatabase()); // Local instance
   }
   return syncServiceInstance;
 }

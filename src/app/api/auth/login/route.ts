@@ -2,24 +2,54 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/database/db';
 import { z } from 'zod';
 
+// Define a minimal interface for D1Database for local development and type checking
+interface D1Database {
+  prepare(query: string): {
+    bind(...args: any[]): D1PreparedStatement;
+    all(): Promise<{ results: any[] }>;
+    first<T>(col?: string): Promise<T | null>;
+    run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+  };
+  exec(query: string): Promise<any>;
+}
+
+interface D1PreparedStatement {
+  bind(...args: any[]): D1PreparedStatement;
+  all(): Promise<{ results: any[] }>;
+  first<T>(col?: string): Promise<T | null>;
+  run(): Promise<{ success: boolean; results: any[]; meta: any }>;
+}
+
 // Force dynamic rendering to prevent static analysis during build
 export const dynamic = 'force-dynamic';
+
+// Only allow these two admin emails
+const ALLOWED_ADMIN_EMAILS = ['spoass@icloud.com', 'laila.torresanz@hotmail.com'];
 
 const loginSchema = z.object({
   email: z.string().email(),
 });
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest, context: { env: { DB: D1Database } }) {
   try {
     const body = await request.json();
     const { email } = loginSchema.parse(body);
 
-    const db = getDatabase();
-    const user = db.getUserByEmail(email);
+    // Check if email is allowed
+    if (!ALLOWED_ADMIN_EMAILS.includes(email)) {
+      return NextResponse.json(
+        { error: 'Access denied. Only authorized users are allowed.' },
+        { status: 403 }
+      );
+    }
+
+    const db = getDatabase(context.env.DB);
+    await db.initializeTablesAsync(); // Ensure D1 tables are initialized asynchronously
+    const user = await db.getUserByEmail(email);
 
     if (!user) {
       return NextResponse.json(
-        { error: 'No account found with this email. Please register first.' },
+        { error: 'Account not found. Please contact the administrator.' },
         { status: 404 }
       );
     }

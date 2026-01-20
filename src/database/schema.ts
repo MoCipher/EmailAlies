@@ -3,6 +3,7 @@ export interface User {
   email: string;
   encryptionKey: string; // Encrypted master key
   masterKeySalt: string; // Salt for master key encryption
+  isAdmin: boolean; // Admin rights
   createdAt: Date;
   updatedAt: Date;
 }
